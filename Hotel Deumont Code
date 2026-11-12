@@ -1,0 +1,357 @@
+ScoreManager
+
+using TMPro;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class ScoreManager : MonoBehaviour
+{
+    public static ScoreManager Instance;
+
+    public TextMeshProUGUI scoreText;
+
+    private int score = 0;
+
+    public int targetScore = 500;
+
+    private void Awake()
+    {
+        Instance = this;
+    }
+
+    public void AddScore(int points)
+    {
+        score += points;
+
+        scoreText.text = "Score: " + score;
+
+        Debug.Log("Score: " + score);
+
+        if (score >= targetScore)
+        {
+            SceneManager.LoadScene("VictoryScene");
+        }
+    }
+}
+
+===============================================================================================
+
+MatchChecker
+
+using UnityEngine;
+using UnityEngine.UI;
+
+public class MatchChecker : MonoBehaviour
+{
+    public void CheckMatch(Tile tile)
+    {
+        Tile[,] board = BoardManager.Instance.boardTiles;
+
+        // HORIZONTAL MATCHES
+        for (int y = 0; y < BoardManager.Instance.height; y++)
+        {
+            for (int x = 0; x < BoardManager.Instance.width - 2; x++)
+            {
+                Tile first = board[x, y];
+                Tile second = board[x + 1, y];
+                Tile third = board[x + 2, y];
+
+                if (first.tileType == second.tileType &&
+                    second.tileType == third.tileType)
+                {
+                    Debug.Log("MATCH FOUND!");
+
+                    ScoreManager.Instance.AddScore(100);
+
+                    RemoveTile(first);
+                    RemoveTile(second);
+                    RemoveTile(third);
+                }
+            }
+        }
+
+        // VERTICAL MATCHES
+        for (int x = 0; x < BoardManager.Instance.width; x++)
+        {
+            for (int y = 0; y < BoardManager.Instance.height - 2; y++)
+            {
+                Tile first = board[x, y];
+                Tile second = board[x, y + 1];
+                Tile third = board[x, y + 2];
+
+                if (first.tileType == second.tileType &&
+                    second.tileType == third.tileType)
+                {
+                    Debug.Log("VERTICAL MATCH FOUND!");
+
+                    ScoreManager.Instance.AddScore(100);
+
+                    RemoveTile(first);
+                    RemoveTile(second);
+                    RemoveTile(third);
+                }
+            }
+        }
+    }
+
+    void RemoveTile(Tile tile)
+    {
+        Image image = tile.GetComponent<Image>();
+
+        int randomTile =
+            Random.Range(
+                0,
+                BoardManager.Instance.tileSprites.Length);
+
+        tile.tileType = randomTile;
+
+        image.sprite =
+            BoardManager.Instance.tileSprites[randomTile];
+
+        image.enabled = true;
+    }
+}
+
+==============================================================================================
+
+MainMenu
+
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class StartGameButton : MonoBehaviour
+{
+    public void StartGame()
+    {
+        SceneManager.LoadScene("GameScene");
+    }
+}
+
+==============================================================================================
+
+EyeTimerManager
+
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+
+public class EyeTimerManager : MonoBehaviour
+{
+    public Image eyeImage;
+
+    public Sprite eyePhase1;
+    public Sprite eyePhase2;
+    public Sprite eyePhase3;
+    public Sprite eyePhase4;
+    public Sprite eyePhase5;
+
+    public float timer = 60f;
+
+    private float maxTime;
+
+    void Start()
+    {
+        maxTime = timer;
+        eyeImage.sprite = eyePhase1;
+    }
+
+    void Update()
+    {
+        timer -= Time.deltaTime;
+
+        float progress = 1f - (timer / maxTime);
+
+        if (progress >= 0.8f)
+        {
+            eyeImage.sprite = eyePhase5;
+        }
+        else if (progress >= 0.6f)
+        {
+            eyeImage.sprite = eyePhase4;
+        }
+        else if (progress >= 0.4f)
+        {
+            eyeImage.sprite = eyePhase3;
+        }
+        else if (progress >= 0.2f)
+        {
+            eyeImage.sprite = eyePhase2;
+        }
+        else
+        {
+            eyeImage.sprite = eyePhase1;
+        }
+
+        if (timer <= 0)
+        {
+            SceneManager.LoadScene("DefeatScene");
+        }
+    }
+}
+
+===============================================================================================
+
+Tile
+
+using UnityEngine;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
+
+public class Tile : MonoBehaviour, IPointerClickHandler
+{
+    public int tileType;
+
+    public int x;
+    public int y;
+
+    public static Tile firstSelected;
+    public static Tile secondSelected;
+
+    private Image image;
+    private Color originalColor;
+
+    private void Start()
+    {
+        image = GetComponent<Image>();
+        originalColor = image.color;
+    }
+
+    public void OnPointerClick(PointerEventData eventData)
+    {
+        if (firstSelected == null)
+        {
+            firstSelected = this;
+
+            image.color = Color.yellow;
+
+            Debug.Log("First Tile Selected");
+        }
+        else if (firstSelected != this)
+        {
+            secondSelected = this;
+
+            Debug.Log("Second Tile Selected");
+
+            SwapTiles();
+
+            Debug.Log("MATCH CHECK STARTED");
+
+            FindObjectOfType<MatchChecker>()
+                .CheckMatch(firstSelected);
+
+            firstSelected.image.color =
+                firstSelected.originalColor;
+
+            firstSelected = null;
+            secondSelected = null;
+        }
+    }
+
+    void SwapTiles()
+    {
+        Image firstImage =
+            firstSelected.GetComponent<Image>();
+
+        Image secondImage =
+            secondSelected.GetComponent<Image>();
+
+        Sprite tempSprite =
+            firstImage.sprite;
+
+        firstImage.sprite =
+            secondImage.sprite;
+
+        secondImage.sprite =
+            tempSprite;
+
+        int tempType =
+            firstSelected.tileType;
+
+        firstSelected.tileType =
+            secondSelected.tileType;
+
+        secondSelected.tileType =
+            tempType;
+    }
+}
+
+=============================================================================================
+
+BoardManager
+
+using UnityEngine;
+using UnityEngine.UI;
+
+public class BoardManager : MonoBehaviour
+{
+    public static BoardManager Instance;
+
+    public GameObject tilePrefab;
+
+    public Sprite[] tileSprites;
+
+    public int width = 8;
+    public int height = 7;
+
+    public Tile[,] boardTiles;
+
+    private void Awake()
+    {
+        Instance = this;
+    }
+
+    void Start()
+    {
+        boardTiles = new Tile[width, height];
+
+        GenerateBoard();
+    }
+
+    void GenerateBoard()
+    {
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                GameObject tile =
+                    Instantiate(tilePrefab, transform);
+
+                Tile tileScript =
+                    tile.GetComponent<Tile>();
+
+                tileScript.x = x;
+                tileScript.y = y;
+
+                boardTiles[x, y] = tileScript;
+
+                int randomTile =
+                    Random.Range(0, tileSprites.Length);
+
+                tileScript.tileType = randomTile;
+
+                Image image =
+                    tile.GetComponent<Image>();
+
+                image.sprite =
+                    tileSprites[randomTile];
+            }
+        }
+    }
+}
+
+=========================================================================
+
+RetryButtonScript
+
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class RetryButton : MonoBehaviour
+{
+    public void RetryGame()
+    {
+        SceneManager.LoadScene("GameScene");
+    }
+}
+
+=========================================================================
